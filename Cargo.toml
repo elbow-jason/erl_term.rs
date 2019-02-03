@@ -1,0 +1,10 @@
+[package]
+name = "erl_term"
+version = "0.1.0"
+authors = ["Jason Goldberger <jlgoldb2@asu.edu>"]
+edition = "2018"
+
+[dependencies]
+nom = "4.2.0"
+
+
