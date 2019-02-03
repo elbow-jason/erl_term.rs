@@ -3,16 +3,15 @@ pub enum ErlTermError {
     InvalidBinaryFormat,
 }
 
-
 #[macro_use]
 extern crate nom;
 
-use nom::{be_u8, be_i32, be_u32, be_u16, be_f64, IResult};
+use nom::{be_f64, be_i32, be_u16, be_u32, be_u8, IResult};
 
-named!(parse_small_int<&[u8], Term>, 
+named!(parse_small_int<&[u8], Term>,
     do_parse!(
         tag!(&[97_u8]) >>
-        value: be_u8 >> 
+        value: be_u8 >>
         (Term::SmallInt(value))
     )
 );
@@ -93,6 +92,15 @@ named!(parse_map<&[u8], Term>,
     )
 );
 
+named!(parse_charlist<&[u8], Term>,
+    do_parse!(
+        tag!(&[107_u8]) >>
+        size: be_u16 >>
+        value: take!(size) >>
+        (Term::CharList(value.to_vec()))
+    )
+);
+
 fn parse_pairs(data: &[u8], size: usize) -> IResult<&[u8], Vec<(Term, Term)>> {
     let mut pairs: Vec<(Term, Term)> = Vec::with_capacity(size);
     let mut rest = data;
@@ -105,7 +113,6 @@ fn parse_pairs(data: &[u8], size: usize) -> IResult<&[u8], Vec<(Term, Term)>> {
                 pairs.push((key, value));
                 rest = remaining;
                 count -= 1;
-
             }
             Err(e) => return Err(e),
         }
@@ -125,15 +132,6 @@ fn split_tail(terms: Vec<Term>) -> (Vec<Term>, Term) {
     let tail = terms[length - 1].clone();
     (items, tail)
 }
-
-named!(parse_charlist<&[u8], Term>,
-    do_parse!(
-        tag!(&[107_u8]) >>
-        size: be_u16 >>
-        value: take!(size) >>
-        (Term::CharList(value.to_vec()))
-    )
-);
 
 #[allow(dead_code)]
 fn parse_items(data: &[u8], size: usize) -> IResult<&[u8], Vec<Term>> {
@@ -155,7 +153,6 @@ fn parse_items(data: &[u8], size: usize) -> IResult<&[u8], Vec<Term>> {
     } else {
         Ok((rest, parsed))
     }
-    
 }
 
 fn done_or_error(res: IResult<&[u8], Term>) -> DecodeResult {
@@ -167,9 +164,8 @@ fn done_or_error(res: IResult<&[u8], Term>) -> DecodeResult {
                 Term::format_error()
             }
         }
-        _ => Term::format_error()
+        _ => Term::format_error(),
     }
-    
 }
 
 type DecodeResult = Result<Term, ErlTermError>;
@@ -208,14 +204,13 @@ pub enum Term {
 }
 
 impl Term {
-
     fn format_error<'a>() -> DecodeResult {
         Err(ErlTermError::InvalidBinaryFormat)
     }
 
     fn parse_headerless(b: &[u8]) -> IResult<&[u8], Term> {
         if b.len() == 0 {
-            return Err(nom::Err::Incomplete(nom::Needed::Unknown))
+            return Err(nom::Err::Incomplete(nom::Needed::Unknown));
         }
         let parser = match b[0] {
             97 => parse_small_int,
@@ -326,7 +321,6 @@ mod tests {
         }
     }
 
-
     #[test]
     fn parse_items_returns_excess_bytes() {
         let items = vec![100, 0, 2, 111, 107, 97, 0];
@@ -366,24 +360,23 @@ mod tests {
 
     #[test]
     fn parse_list_works() {
-         
-        let bytes = vec![108, 0, 0, 0, 2, 100, 0, 2, 111, 107, 100, 0, 5, 106, 97, 115, 111,
-  110, 106];
+        let bytes = vec![
+            108, 0, 0, 0, 2, 100, 0, 2, 111, 107, 100, 0, 5, 106, 97, 115, 111, 110, 106,
+        ];
         match parse_list(&bytes) {
             Ok((rest, term)) => {
                 assert_eq!(rest.len(), 0);
                 match term {
                     Term::List(terms, tail) => {
-                        let ok_atom = Term::Atom(vec![111, 107,]);
+                        let ok_atom = Term::Atom(vec![111, 107]);
                         let jason_atom = Term::Atom(vec![106, 97, 115, 111, 110]);
                         assert_eq!(terms.len(), 2);
                         assert_eq!(terms[0], ok_atom);
                         assert_eq!(terms[1], jason_atom);
                         assert_eq!(tail, Box::new(Term::Empty));
                     }
-                    _ => panic!("test failed - parsed item was not a list")
+                    _ => panic!("test failed - parsed item was not a list"),
                 }
-                
             }
             Err(_) => panic!("test failed"),
         }
@@ -408,10 +401,7 @@ mod tests {
             Ok((rest, term)) => {
                 let ok_atom = Term::Atom(vec![111, 107]);
                 let zero_int = Term::SmallInt(0);
-                let tuple_contents = vec![
-                    ok_atom,
-                    zero_int,
-                ];
+                let tuple_contents = vec![ok_atom, zero_int];
                 assert_eq!(rest.len(), 0);
                 assert_eq!(term, Term::Tuple(2, tuple_contents))
             }
@@ -435,7 +425,6 @@ mod tests {
                 }
             }
             Err(e) => panic!("test failed - error {:?}", e),
-
         }
     }
 
@@ -455,8 +444,9 @@ mod tests {
 
     #[test]
     fn parse_map_works() {
-        let bytes: Vec<u8> = vec![116, 0, 0, 0, 1, 100, 0, 4, 110, 97, 109, 101, 109, 0, 0, 0, 5, 106,
-  97, 115, 111, 110];
+        let bytes: Vec<u8> = vec![
+            116, 0, 0, 0, 1, 100, 0, 4, 110, 97, 109, 101, 109, 0, 0, 0, 5, 106, 97, 115, 111, 110,
+        ];
         match parse_map(&bytes) {
             Ok((rest, got)) => {
                 assert_eq!(rest.len(), 0);
@@ -469,7 +459,6 @@ mod tests {
                     }
                     t => panic!("test failed - unexpected term type {:?}", t),
                 }
-                
             }
             Err(e) => {
                 panic!("test failed - {:?}", e);
